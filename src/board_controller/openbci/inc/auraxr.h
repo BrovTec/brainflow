@@ -7,7 +7,7 @@
 
 #include "board.h"
 #include "board_controller.h"
-#include "socket_client_udp.h"
+#include "socket_client_tcp.h"
 
 #define ADS1299_Vref 4.5
 
@@ -26,7 +26,7 @@ private:
     bool initialized;
     bool is_streaming;
     std::thread streaming_thread;
-    SocketClientUDP *socket;
+    SocketClientTCP *socket;
 
     std::mutex m;
     std::condition_variable cv;

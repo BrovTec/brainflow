@@ -27,29 +27,29 @@ class Message (enum.Enum):
 class AuraXREmulator (object):
 
     def __init__ (self):
+        pass
+
+    def run (self):
         self.local_ip = '127.0.0.1'
         self.local_port = 2390
-        self.server_socket = socket.socket (family = socket.AF_INET, type = socket.SOCK_DGRAM)
-        self.server_socket.settimeout (0.1) # decreases sampling rate significantly because it will wait for recv 0.1 sec but it's just a test
+        self.server_socket = socket.socket (family = socket.AF_INET, type = socket.SOCK_STREAM)
         self.server_socket.bind ((self.local_ip, self.local_port))
+        self.server_socket.listen (1)
+        self.conn, self.client = self.server_socket.accept ()
+        self.conn.settimeout (0.1)
         self.state = State.wait.value
         self.addr = None
         self.package_num = 0
         self.transaction_size = 19
         self.package_size = 72
 
-    def run (self):
         while True:
             try:
-                msg, self.addr = self.server_socket.recvfrom (128)
+                msg, self.addr = self.conn.recvfrom (128)
                 if msg == Message.start_stream.value:
                     self.state = State.stream.value
                 elif msg == Message.stop_stream.value:
                     self.state = State.wait.value
-                elif msg in Message.ack_values.value or msg.decode ('utf-8').startswith ('x'):
-                    self.server_socket.sendto (Message.ack_from_device.value, self.addr)
-                elif msg == Message.temp_ack_from_host.value:
-                    pass # just remove it from logs
                 else:
                     if msg:
                         # we dont handle board config characters because they dont change package format
@@ -90,7 +90,7 @@ class AuraXREmulator (object):
                     package = list ()
                     for i in range (self.transaction_size):
                         package.extend (bytes (transaction[i]))
-                    self.server_socket.sendto (bytes (package), self.addr)
+                    self.conn.send (bytes (package))
                 except socket.timeout:
                     logging.info ('timeout for send')
 

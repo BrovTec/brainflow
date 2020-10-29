@@ -44,40 +44,14 @@ int AuraXR::prepare_session ()
         safe_logger (spdlog::level::info, "use default IP address 192.168.4.1");
         params.ip_address = "192.168.4.1";
     }
-    if (params.ip_protocol == (int)IpProtocolType::TCP)
-    {
-        safe_logger (spdlog::level::err, "ip protocol is UDP for novaxr");
-        return (int)BrainFlowExitCodes::INVALID_ARGUMENTS_ERROR;
-    }
-    socket = new SocketClientUDP (params.ip_address.c_str (), 2390);
+    socket = new SocketClientTCP (params.ip_address.c_str (), 2390, true);
     int res = socket->connect ();
-    if (res != (int)SocketClientUDPReturnCodes::STATUS_OK)
+    if (res != (int)SocketClientTCPReturnCodes::STATUS_OK)
     {
         safe_logger (spdlog::level::err, "failed to init socket: {}", res);
         delete socket;
         socket = NULL;
         return (int)BrainFlowExitCodes::GENERAL_ERROR;
-    }
-    // force default settings for device
-    std::string tmp;
-    std::string default_settings = "d";
-    res = config_board (default_settings, tmp);
-    if (res != (int)BrainFlowExitCodes::STATUS_OK)
-    {
-        safe_logger (spdlog::level::err, "failed to apply default settings");
-        delete socket;
-        socket = NULL;
-        return (int)BrainFlowExitCodes::BOARD_WRITE_ERROR;
-    }
-    // force default sampling rate - 250
-    std::string sampl_rate = "~6";
-    res = config_board (sampl_rate, tmp);
-    if (res != (int)BrainFlowExitCodes::STATUS_OK)
-    {
-        safe_logger (spdlog::level::err, "failed to apply defaul sampling rate");
-        delete socket;
-        socket = NULL;
-        return (int)BrainFlowExitCodes::BOARD_WRITE_ERROR;
     }
     initialized = true;
     return (int)BrainFlowExitCodes::STATUS_OK;
@@ -106,43 +80,6 @@ int AuraXR::config_board (std::string conf, std::string &response)
         }
         safe_logger (spdlog::level::err, "Failed to config a board");
         return (int)BrainFlowExitCodes::BOARD_WRITE_ERROR;
-    }
-    if (!is_streaming)
-    {
-        constexpr int max_string_size = 8192;
-        char b[max_string_size];
-        res = AuraXR::transaction_size;
-        while (res == AuraXR::transaction_size)
-        {
-            res = socket->recv (b, max_string_size);
-            if (res == -1)
-            {
-#ifdef _WIN32
-                safe_logger (
-                    spdlog::level::err, "config_board WSAGetLastError is {}", WSAGetLastError ());
-#else
-                safe_logger (spdlog::level::err, "config_board errno {} message {}", errno,
-                    strerror (errno));
-#endif
-                return (int)BrainFlowExitCodes::BOARD_WRITE_ERROR;
-            }
-        }
-        // set response string
-        for (int i = 0; i < res; i++)
-        {
-            response = response + b[i];
-        }
-        switch (b[0])
-        {
-            case 'A':
-                return (int)BrainFlowExitCodes::STATUS_OK;
-            case 'I':
-                safe_logger (spdlog::level::err, "invalid command");
-                return (int)BrainFlowExitCodes::INVALID_ARGUMENTS_ERROR;
-            default:
-                safe_logger (spdlog::level::warn, "unknown char received: {}", b[0]);
-                return (int)BrainFlowExitCodes::STATUS_OK;
-        }
     }
 
     return (int)BrainFlowExitCodes::STATUS_OK;
@@ -330,7 +267,6 @@ void AuraXR::read_thread ()
         }
         else
         {
-            socket->send ("a", sizeof (char)); // send ack that data received
             // inform main thread that everything is ok and first package was received
             if (this->state != (int)BrainFlowExitCodes::STATUS_OK)
             {

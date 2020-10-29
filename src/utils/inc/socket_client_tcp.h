@@ -8,6 +8,7 @@
 #include <unistd.h>
 #endif
 
+#include <queue>
 #include <stdlib.h>
 #include <string.h>
 
@@ -18,14 +19,15 @@ enum class SocketClientTCPReturnCodes : int
     WSA_STARTUP_ERROR = 1,
     CREATE_SOCKET_ERROR = 2,
     CONNECT_ERROR = 3,
-    PTON_ERROR = 4
+    PTON_ERROR = 4,
+    INVALID_ARGUMENT_ERROR = 5
 };
 
 class SocketClientTCP
 {
 
 public:
-    SocketClientTCP (const char *port_name, int port);
+    SocketClientTCP (const char *port_name, int port, bool recv_all_or_nothing);
     ~SocketClientTCP ()
     {
         close ();
@@ -44,11 +46,14 @@ public:
     {
         return port;
     }
+    int set_timeout (int num_seconds);
 
 
 private:
     char ip_addr[32];
     int port;
+    std::queue<char> temp_buffer;
+    bool recv_all_or_nothing;
 #ifdef _WIN32
     SOCKET connect_socket;
     struct sockaddr_in socket_addr;

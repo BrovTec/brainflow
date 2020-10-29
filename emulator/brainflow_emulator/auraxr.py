@@ -19,9 +19,6 @@ class State (enum.Enum):
 class Message (enum.Enum):
     start_stream = b'b'
     stop_stream = b's'
-    ack_values = (b'd', b'~6')
-    ack_from_device = b'A'
-    temp_ack_from_host = b'a' # maybe will be removed later
 
 
 def test_socket (cmd_list):
@@ -48,33 +45,31 @@ class AuraXREmulator (threading.Thread):
 
     def __init__ (self):
         threading.Thread.__init__ (self)
+
+    def run (self):
         self.local_ip = '127.0.0.1'
         self.local_port = 2390
-        self.server_socket = socket.socket (family = socket.AF_INET, type = socket.SOCK_DGRAM)
-        self.server_socket.settimeout (0.1) # decreases sampling rate significantly because it will wait for recv 0.1 sec but it's just a test
+        self.server_socket = socket.socket (family = socket.AF_INET, type = socket.SOCK_STREAM)
         self.server_socket.bind ((self.local_ip, self.local_port))
+        self.server_socket.listen (1)
+        self.conn, self.client = self.server_socket.accept ()
+        self.conn.settimeout (0.1)
         self.state = State.wait.value
         self.addr = None
         self.package_num = 0
+        self.transaction_size = 19
         self.package_size = 72
         self.keep_alive = True
 
-    def run (self):
         while self.keep_alive:
             try:
-                msg, self.addr = self.server_socket.recvfrom (128)
+                msg, self.addr = self.conn.recvfrom (128)
                 if msg == Message.start_stream.value:
                     self.state = State.stream.value
                 elif msg == Message.stop_stream.value:
                     self.state = State.wait.value
-                elif msg in Message.ack_values.value:
-                    self.server_socket.sendto (Message.ack_from_device.value, self.addr)
-                elif msg == Message.temp_ack_from_host.value:
-                    pass # just remove it from logs
-                else:
-                    if msg:
-                        # we dont handle board config characters because they dont change package format
-                        logging.warn ('received unexpected string %s', str (msg))
+                if msg:
+                    logging.warn ('received string %s', str (msg))
             except socket.timeout:
                 logging.debug ('timeout for recv')
             except Exception:
@@ -92,7 +87,7 @@ class AuraXREmulator (threading.Thread):
                     timestamp = bytearray (struct.pack ("d", time.time ()))
                     package.extend (timestamp)
                 try:
-                    self.server_socket.sendto (bytes (package), self.addr)
+                    self.conn.send (bytes (package))
                 except socket.timeout:
                     logging.info ('timeout for send')
 
@@ -101,6 +96,7 @@ def main (cmd_list):
     if not cmd_list:
         raise Exception ('No command to execute')
     server_thread = run_socket_server ()
+    time.sleep (3)
     test_socket (cmd_list)
     server_thread.keep_alive = False
     server_thread.join ()
