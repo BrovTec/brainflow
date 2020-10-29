@@ -64,7 +64,7 @@ def main ():
         bytes_per_package = 66
     elif master_board_id == BoardIds.SYNTHETIC_BOARD.value:
         bytes_per_package = 104
-    elif master_board_id == BoardIds.NOVAXR_BOARD.value:
+    elif master_board_id == BoardIds.AURA_BOARD.value:
         bytes_per_package = 72
     else:
         raise ValueError ('unsupported board')
